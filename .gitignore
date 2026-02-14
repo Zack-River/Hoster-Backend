@@ -1,6 +1,8 @@
 
 # Frontend (Separate Repo)
+# Frontend (Separate Repo)
 client/
+client-backup/
 
 # Environment
 .env
