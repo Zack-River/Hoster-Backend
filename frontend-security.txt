@@ -1,0 +1,333 @@
+🧱 1️⃣ Never Trust the Frontend (Golden Rule)
+
+Frontend security = protection layer
+Backend security = real enforcement
+
+Anything in:
+
+localStorage
+
+JS variables
+
+hidden inputs
+
+disabled buttons
+
+❌ Can be manipulated.
+
+🔐 2️⃣ Environment Variables Safety
+✅ Use correct prefixes
+
+Only expose public variables:
+
+NEXT_PUBLIC_API_URL=https://api.example.com
+
+
+Anything without NEXT_PUBLIC_ stays server-only.
+
+Never expose:
+
+API secrets
+
+DB URLs
+
+Private keys
+
+JWT secret
+
+🛡 3️⃣ Content Security Policy (CSP) — CRITICAL
+
+Add security headers in next.config.js:
+
+const securityHeaders = [
+  {
+    key: "Content-Security-Policy",
+    value:
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https://api.example.com;",
+  },
+  {
+    key: "X-Frame-Options",
+    value: "DENY",
+  },
+  {
+    key: "X-Content-Type-Options",
+    value: "nosniff",
+  },
+  {
+    key: "Referrer-Policy",
+    value: "strict-origin-when-cross-origin",
+  },
+];
+
+
+This prevents:
+
+XSS
+
+Clickjacking
+
+MIME sniffing
+
+🚫 4️⃣ Prevent XSS (Cross-Site Scripting)
+NEVER use:
+dangerouslySetInnerHTML
+
+
+Unless:
+
+You sanitize content first
+
+Use:
+
+npm install dompurify
+
+🔑 5️⃣ Avoid Storing Tokens in localStorage
+
+❌ Bad:
+
+localStorage.setItem("token", jwt);
+
+
+Better:
+
+HTTP-only cookies
+
+SameSite=strict
+
+Secure flag
+
+Because:
+localStorage = accessible by XSS
+
+🍪 6️⃣ Secure Cookies Setup
+
+Cookies must be:
+
+httpOnly: true
+secure: true
+sameSite: "strict"
+
+
+Even if handled backend — frontend must expect it.
+
+🧠 7️⃣ Protect Against CSRF
+
+If using cookies for auth:
+
+Backend must implement:
+
+CSRF token
+
+SameSite cookies
+
+Frontend:
+
+Include CSRF token in requests
+
+🧹 8️⃣ Remove Sensitive Console Logs
+
+Before production:
+
+Remove:
+
+console.log(user);
+console.log(token);
+
+
+Use:
+
+next build
+
+
+With proper minification.
+
+📦 9️⃣ Dependency Security
+
+Run:
+
+npm audit
+
+
+Also use:
+
+npm audit fix
+
+
+And avoid:
+
+Abandoned packages
+
+Random small GitHub packages
+
+🧩 1️⃣0️⃣ Disable Source Maps in Production
+
+In next.config.js:
+
+productionBrowserSourceMaps: false
+
+
+This prevents exposing readable JS source.
+
+🔒 1️⃣1️⃣ Route Protection (Client-Side)
+
+Don’t rely only on:
+
+if (!user) redirect("/login")
+
+
+Because user can manipulate JS.
+
+Real protection must be:
+
+Middleware
+
+Server-side validation
+
+Use Next Middleware:
+
+import { NextResponse } from "next/server";
+
+export function middleware(req) {
+  const token = req.cookies.get("token");
+  if (!token) {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+}
+
+🧊 1️⃣2️⃣ Limit Third-Party Scripts
+
+Each script:
+
+Is potential XSS vector
+
+Slows performance
+
+Only use:
+
+Necessary analytics
+
+Verified sources
+
+Add integrity if possible:
+
+<script src="..." integrity="sha384-..." crossorigin="anonymous"></script>
+
+🌍 1️⃣3️⃣ Prevent Clickjacking
+
+Header:
+
+X-Frame-Options: DENY
+
+
+Or CSP:
+
+frame-ancestors 'none'
+
+🔍 1️⃣4️⃣ Protect Against Open Redirects
+
+Avoid:
+
+router.push(searchParams.get("redirect"))
+
+
+Always validate redirect URLs.
+
+🔥 1️⃣5️⃣ Secure API Calls
+
+Never expose:
+
+Admin endpoints
+
+Secret endpoints
+
+Direct DB access
+
+Frontend should only talk to:
+
+Public API routes
+
+Backend gateway
+
+🧪 1️⃣6️⃣ Rate Limiting Awareness
+
+Frontend:
+
+Disable spam clicks
+
+Add loading states
+
+Prevent multiple form submissions
+
+But backend must enforce rate limits.
+
+📁 1️⃣7️⃣ Protect File Uploads
+
+Frontend:
+
+Validate file type
+
+Limit file size
+
+Use accept attribute
+
+But backend must revalidate everything.
+
+⚙️ 1️⃣8️⃣ Use Strict Mode
+
+In next.config.js:
+
+reactStrictMode: true
+
+
+Catches unsafe patterns.
+
+🧠 1️⃣9️⃣ Avoid Exposing Internal IDs
+
+Instead of:
+
+/user/1
+
+
+Use:
+
+UUID
+
+Slugs
+
+Prevents enumeration attacks.
+
+🧨 2️⃣0️⃣ Disable Caching Sensitive Pages
+
+For dashboard pages:
+
+export const dynamic = "force-dynamic";
+
+
+Or:
+
+export const revalidate = 0;
+
+
+Prevent caching user data.
+
+🛑 2️⃣1️⃣ Error Handling
+
+Don’t expose:
+
+Stack traces
+
+Internal errors
+
+DB messages
+
+Use custom error pages.
+
+🚀 2️⃣2️⃣ Use HTTPS Only
+
+Never deploy HTTP.
+
+Enable:
+
+HSTS header
+
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload

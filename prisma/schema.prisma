@@ -1,0 +1,677 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  host
+  provider
+  admin
+}
+
+enum ConnectionStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+}
+
+enum ListingStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ReservationStatus {
+  INQUIRY
+  CONFIRMED
+  CANCELED
+  CHECKED_IN
+  CHECKED_OUT
+  PENDING
+  REJECTED
+}
+
+enum CalendarDayStatus {
+  AVAILABLE
+  BLOCKED
+  RESERVED
+}
+
+enum CalendarSource {
+  MANUAL
+  CHANNEL
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CleaningTaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum CheckinTiming {
+  CHECKIN_MINUS_24H
+  CHECKIN_MORNING
+}
+
+enum AutomationTemplateKey {
+  CHECKIN_MESSAGE
+  CHECKOUT_THANKYOU
+  FIRST_REPLY_ACK
+  WELCOME_10MIN
+  ACCESS_30MIN
+  FOLLOWUP_1H
+}
+
+enum AutomationActionType {
+  SEND_CHECKIN_MESSAGE
+  SEND_CHECKOUT_THANKYOU
+  SEND_FIRST_REPLY_ACK
+  CLEANING_REMINDER
+  SEND_WELCOME_10MIN
+  SEND_ACCESS_30MIN
+  SEND_FOLLOWUP_1H
+}
+
+enum AutomationActionStatus {
+  SUCCESS
+  FAILED
+  PAUSED
+}
+
+enum ApiEnvironment {
+  STAGING
+  PRODUCTION
+}
+
+enum ApiConfigStatus {
+  NOT_CONFIGURED
+  CONFIGURED
+  CONNECTED
+  ERROR
+}
+
+enum ProviderType {
+  CLEANING
+  MAINTENANCE
+}
+
+enum ProviderRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CleaningSubscriptionStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum ProviderMessageSender {
+  HOST
+  PROVIDER
+}
+
+model User {
+  id               String   @id @default(uuid())
+  email            String   @unique
+  password         String
+  firstName        String
+  lastName         String
+  role             UserRole @default(host)
+  country          String?
+  phone            String?
+  companyName      String?
+  crNumber         String?
+  profileImageUrl  String?
+  subscriptionPlan String   @default("light")
+  blocked          Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  channelConnections   ChannelConnection[]
+  listings             Listing[]
+  templates            Template[]
+  notifications        Notification[]
+  reminderSettings     ReminderSettings?
+  cleaningTasks        CleaningTask[]
+  automationSettings   AutomationSettings?
+  automationTemplates  AutomationTemplate[]
+  automationActionLogs AutomationActionLog[]
+  channelApiConfigs    ChannelApiConfig[]
+  apiCallLogs          ApiCallLog[]
+  auditLogs            AuditLog[]
+  supportMessages      SupportMessage[]
+
+  // Provider relations
+  hostSubscriptions     CleaningSubscription[] @relation("HostSubscriptions")
+  providerSubscriptions CleaningSubscription[] @relation("ProviderSubscriptions")
+  visitReports          CleaningVisitReport[]
+  hostReviews           CleaningReview[]       @relation("HostReviews")
+  providerReviews       CleaningReview[]       @relation("ProviderReviews")
+  sentProviderMessages  ProviderMessage[]
+
+  @@map("users")
+}
+
+model Channel {
+  id      String  @id @default(uuid())
+  key     String  @unique
+  name    String
+  logoUrl String?
+
+  connections          ChannelConnection[]
+  externalListingMaps  ExternalListingMap[]
+  reservations         Reservation[]
+  conversations        Conversation[]
+  automationActionLogs AutomationActionLog[]
+
+  @@map("channels")
+}
+
+model ChannelConnection {
+  id           String           @id @default(uuid())
+  userId       String
+  channelId    String
+  status       ConnectionStatus @default(DISCONNECTED)
+  accessToken  String?
+  refreshToken String?
+  lastSyncAt   DateTime?
+  cursor       String?
+  lastError    String?
+
+  user    User    @relation(fields: [userId], references: [id])
+  channel Channel @relation(fields: [channelId], references: [id])
+
+  @@unique([userId, channelId])
+  @@map("channel_connections")
+}
+
+model Listing {
+  id        String        @id @default(uuid())
+  userId    String
+  name      String
+  status    ListingStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+
+  user                 User                     @relation(fields: [userId], references: [id])
+  photos               Photo[]
+  amenities            ListingAmenity[]
+  externalMaps         ExternalListingMap[]
+  reservations         Reservation[]
+  calendarDays         CalendarDay[]
+  conversations        Conversation[]
+  cleaningTasks        CleaningTask[]
+  automationConfig     ListingAutomationConfig?
+  automationActionLogs AutomationActionLog[]
+  cleaningVisitReports CleaningVisitReport[]
+  subscriptions        SubscriptionListing[]
+
+  @@map("listings")
+}
+
+model ExternalListingMap {
+  id                String    @id @default(uuid())
+  listingId         String
+  channelId         String
+  externalListingId String
+  externalName      String
+  lastSyncedAt      DateTime?
+
+  listing Listing @relation(fields: [listingId], references: [id])
+  channel Channel @relation(fields: [channelId], references: [id])
+
+  @@unique([channelId, externalListingId])
+  @@unique([listingId, channelId])
+  @@map("external_listing_maps")
+}
+
+model Reservation {
+  id                    String            @id @default(uuid())
+  listingId             String
+  channelId             String
+  externalReservationId String
+  guestName             String
+  checkIn               DateTime          @db.Date
+  checkOut              DateTime          @db.Date
+  status                ReservationStatus @default(CONFIRMED)
+  totalAmount           Decimal?
+  currency              String?
+  updatedAt             DateTime          @default(now()) @updatedAt
+
+  listing              Listing               @relation(fields: [listingId], references: [id])
+  channel              Channel               @relation(fields: [channelId], references: [id])
+  conversations        Conversation[]
+  cleaningTasks        CleaningTask[]
+  automationActionLogs AutomationActionLog[]
+
+  @@unique([channelId, externalReservationId])
+  @@map("reservations")
+}
+
+model CalendarDay {
+  id        String            @id @default(uuid())
+  listingId String
+  date      DateTime          @db.Date
+  status    CalendarDayStatus @default(AVAILABLE)
+  source    CalendarSource    @default(MANUAL)
+  note      String?
+
+  listing Listing @relation(fields: [listingId], references: [id])
+
+  @@unique([listingId, date])
+  @@map("calendar_days")
+}
+
+model Conversation {
+  id               String    @id @default(uuid())
+  listingId        String
+  channelId        String
+  reservationId    String?
+  guestName        String
+  externalThreadId String?
+  lastMessageAt    DateTime?
+  unreadCount      Int       @default(0)
+
+  listing     Listing      @relation(fields: [listingId], references: [id])
+  channel     Channel      @relation(fields: [channelId], references: [id])
+  reservation Reservation? @relation(fields: [reservationId], references: [id])
+  messages    Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id               String           @id @default(uuid())
+  conversationId   String
+  direction        MessageDirection
+  body             String
+  sentAt           DateTime         @default(now())
+  channelMessageId String?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@map("messages")
+}
+
+model Template {
+  id     String @id @default(uuid())
+  userId String
+  name   String
+  body   String
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("templates")
+}
+
+model ReminderSettings {
+  id                 String  @id @default(uuid())
+  userId             String  @unique
+  autoCheckinMessage Boolean @default(false)
+  cleaningReminder   Boolean @default(false)
+  checkoutReminder   Boolean @default(false)
+  paymentReminder    Boolean @default(false)
+  reviewReminder     Boolean @default(false)
+  enabled            Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("reminder_settings")
+}
+
+model CleaningTask {
+  id                   String             @id @default(uuid())
+  userId               String
+  reservationId        String
+  listingId            String
+  cleaningCompany      String
+  cleaningCompanyPhone String?
+  status               CleaningTaskStatus @default(PENDING)
+  scheduledAt          DateTime           @default(now())
+  completedAt          DateTime?
+  notes                String?
+
+  user        User        @relation(fields: [userId], references: [id])
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  listing     Listing     @relation(fields: [listingId], references: [id])
+
+  @@map("cleaning_tasks")
+}
+
+model AutomationSettings {
+  id                        String        @id @default(uuid())
+  userId                    String        @unique
+  autoCheckinEnabled        Boolean       @default(true)
+  autoCheckinTiming         CheckinTiming @default(CHECKIN_MINUS_24H)
+  autoCheckoutThanksEnabled Boolean       @default(true)
+  cleaningReminderEnabled   Boolean       @default(false)
+  autoFirstReplyEnabled     Boolean       @default(false)
+  quietHoursEnabled         Boolean       @default(false)
+  quietHoursStart           String        @default("23:00")
+  quietHoursEnd             String        @default("08:00")
+  welcomeEnabled            Boolean       @default(true)
+  welcomeIncludePdf         Boolean       @default(false)
+  accessEnabled             Boolean       @default(true)
+  followupEnabled           Boolean       @default(true)
+  updatedAt                 DateTime      @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("automation_settings")
+}
+
+model AutomationTemplate {
+  id        String                @id @default(uuid())
+  userId    String
+  key       AutomationTemplateKey
+  name      String
+  body      String
+  updatedAt DateTime              @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, key])
+  @@map("automation_templates")
+}
+
+model AutomationActionLog {
+  id            String                 @id @default(uuid())
+  userId        String
+  listingId     String?
+  reservationId String?
+  channelId     String?
+  actionType    AutomationActionType
+  status        AutomationActionStatus
+  messageId     String?
+  reason        String?
+  guestName     String?
+  listingName   String?
+  channelKey    String?
+  dedupeKey     String?                @unique
+  createdAt     DateTime               @default(now())
+
+  user        User         @relation(fields: [userId], references: [id])
+  listing     Listing?     @relation(fields: [listingId], references: [id])
+  reservation Reservation? @relation(fields: [reservationId], references: [id])
+  channel     Channel?     @relation(fields: [channelId], references: [id])
+
+  @@map("automation_action_logs")
+}
+
+model ListingAutomationConfig {
+  id                    String   @id @default(uuid())
+  listingId             String   @unique
+  defaultCheckinTime    String?
+  doorCodeEncrypted     String?
+  wifiSsidEncrypted     String?
+  wifiPasswordEncrypted String?
+  brochurePdfUrl        String?
+  brochurePdfFilename   String?
+  updatedAt             DateTime @default(now()) @updatedAt
+
+  listing Listing @relation(fields: [listingId], references: [id])
+
+  @@map("listing_automation_configs")
+}
+
+model ChannelApiConfig {
+  id             String          @id @default(uuid())
+  userId         String
+  channelKey     String
+  environment    ApiEnvironment  @default(STAGING)
+  apiKey         String?
+  clientId       String?
+  clientSecret   String?
+  webhookUrl     String?
+  baseUrl        String?
+  status         ApiConfigStatus @default(NOT_CONFIGURED)
+  lastTestedAt   DateTime?
+  lastTestResult String?
+  lastTestError  String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, channelKey, environment])
+  @@map("channel_api_configs")
+}
+
+model ApiCallLog {
+  id             String         @id @default(uuid())
+  userId         String
+  channelKey     String
+  environment    ApiEnvironment
+  method         String
+  endpoint       String
+  statusCode     Int?
+  responseTimeMs Int?
+  success        Boolean        @default(false)
+  errorMessage   String?
+  createdAt      DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("api_call_logs")
+}
+
+model Notification {
+  id         String    @id @default(uuid())
+  userId     String
+  type       String
+  title      String
+  body       String
+  entityType String?
+  entityId   String?
+  createdAt  DateTime  @default(now())
+  readAt     DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  action     String
+  entityType String
+  entityId   String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model ServiceProvider {
+  id              String       @id @default(uuid())
+  name            String
+  type            ProviderType
+  email           String?
+  phone           String?
+  companyName     String?
+  description     String?
+  profileImageUrl String?
+  commissionRate  Decimal?     @default(10.00)
+  status          String       @default("active")
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @default(now()) @updatedAt
+
+  promotions ProviderPromotion[]
+
+  @@map("service_providers")
+}
+
+model ProviderRequest {
+  id          String                @id @default(uuid())
+  name        String
+  type        ProviderType
+  email       String?
+  phone       String?
+  companyName String?
+  message     String?
+  status      ProviderRequestStatus @default(PENDING)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @default(now()) @updatedAt
+
+  @@map("provider_requests")
+}
+
+model ProviderPromotion {
+  id              String    @id @default(uuid())
+  providerId      String
+  title           String
+  description     String?
+  discountPercent Decimal?  @default(0.00)
+  validFrom       DateTime?
+  validUntil      DateTime?
+  createdAt       DateTime  @default(now())
+
+  provider ServiceProvider @relation(fields: [providerId], references: [id])
+
+  @@map("provider_promotions")
+}
+
+model SupportMessage {
+  id          String           @id @default(uuid())
+  userId      String
+  direction   MessageDirection
+  body        String
+  sentAt      DateTime         @default(now())
+  readByAdmin Boolean          @default(false)
+  readByUser  Boolean          @default(false)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("support_messages")
+}
+
+model CleaningSubscription {
+  id             String                     @id @default(uuid())
+  hostId         String
+  providerId     String
+  termsAccepted  Boolean                    @default(false)
+  status         CleaningSubscriptionStatus @default(PENDING)
+  declineMessage String?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @default(now()) @updatedAt
+
+  host         User                  @relation("HostSubscriptions", fields: [hostId], references: [id])
+  provider     User                  @relation("ProviderSubscriptions", fields: [providerId], references: [id])
+  listings     SubscriptionListing[]
+  visitReports CleaningVisitReport[]
+  reviews      CleaningReview[]
+  messages     ProviderMessage[]
+
+  @@index([hostId])
+  @@index([providerId])
+  @@map("cleaning_subscriptions")
+}
+
+model CleaningVisitReport {
+  id             String   @id @default(uuid())
+  subscriptionId String
+  providerId     String
+  listingId      String
+  notes          String?
+  visitDate      DateTime @db.Date
+  createdAt      DateTime @default(now())
+
+  subscription CleaningSubscription @relation(fields: [subscriptionId], references: [id])
+  photos       Photo[]
+  provider     User                 @relation(fields: [providerId], references: [id])
+  listing      Listing              @relation(fields: [listingId], references: [id])
+  reviews      CleaningReview[]
+
+  @@index([subscriptionId])
+  @@index([providerId])
+  @@map("cleaning_visit_reports")
+}
+
+model CleaningReview {
+  id              String   @id @default(uuid())
+  visitReportId   String
+  subscriptionId  String
+  hostId          String
+  providerId      String
+  rating          Int
+  comment         String?
+  flaggedForAdmin Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  visitReport  CleaningVisitReport  @relation(fields: [visitReportId], references: [id])
+  subscription CleaningSubscription @relation(fields: [subscriptionId], references: [id])
+  host         User                 @relation("HostReviews", fields: [hostId], references: [id])
+  provider     User                 @relation("ProviderReviews", fields: [providerId], references: [id])
+
+  @@index([hostId])
+  @@index([providerId])
+  @@map("cleaning_reviews")
+}
+
+model ProviderMessage {
+  id             String                @id @default(uuid())
+  subscriptionId String
+  senderId       String
+  senderType     ProviderMessageSender
+  body           String
+  sentAt         DateTime              @default(now())
+
+  subscription CleaningSubscription @relation(fields: [subscriptionId], references: [id])
+  sender       User                 @relation(fields: [senderId], references: [id])
+
+  @@index([subscriptionId])
+  @@map("provider_messages")
+}
+
+model Photo {
+  id        String               @id @default(uuid())
+  url       String
+  listingId String?
+  listing   Listing?             @relation(fields: [listingId], references: [id])
+  reportId  String?
+  report    CleaningVisitReport? @relation(fields: [reportId], references: [id])
+  createdAt DateTime             @default(now())
+
+  @@map("photos")
+}
+
+model Amenity {
+  id       String           @id @default(uuid())
+  name     String           @unique
+  listings ListingAmenity[]
+
+  @@map("amenities")
+}
+
+model ListingAmenity {
+  listingId String
+  amenityId String
+  listing   Listing @relation(fields: [listingId], references: [id])
+  amenity   Amenity @relation(fields: [amenityId], references: [id])
+
+  @@id([listingId, amenityId])
+  @@map("listing_amenities")
+}
+
+model SubscriptionListing {
+  subscriptionId String
+  listingId      String
+  subscription   CleaningSubscription @relation(fields: [subscriptionId], references: [id])
+  listing        Listing              @relation(fields: [listingId], references: [id])
+
+  @@id([subscriptionId, listingId])
+  @@map("subscription_listings")
+}

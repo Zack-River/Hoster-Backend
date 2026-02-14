@@ -1,0 +1,1 @@
+now use winston and morgan and make logger wrapper  to log everything by danger levels with different colors and timestamps in a world standard way

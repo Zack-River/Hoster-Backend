@@ -1,0 +1,260 @@
+You are a senior full-stack engineer and product designer. Build an MVP called “Hoster” — a B2C, mobile-first web app (PWA) for solo short-term rental hosts (1–10 listings). The goal is calm, fast daily control over bookings, availability, and guest messages. The app must SUPPORT a multi-channel journey from day one (Airbnb, Booking.com, Expedia, TripAdvisor), but for MVP we will implement them as MOCK providers with a clean adapter interface so we can later swap to real APIs/aggregators.
+
+IMPORTANT
+- B2C: single-user accounts (no teams).
+- Mobile-first UI only (phone layout). Bottom tab bar.
+- Keep it shippable: implement a working multi-channel experience using MOCK providers.
+- Do NOT scrape any websites. No unofficial automation. Only design with provider adapters + placeholder connectors.
+- Structure the code so adding real providers later is a drop-in change.
+
+TECH STACK
+- Frontend: Next.js (App Router) + TypeScript + Tailwind (mobile-first)
+- Backend: Next.js Route Handlers (API routes) + Server Actions
+- Database: PostgreSQL with Prisma ORM
+- Auth: NextAuth (Credentials provider)
+- Background jobs: simple cron endpoints + DB cursor polling (no external queue for MVP)
+- Notifications: in-app notifications (push optional placeholder)
+
+CORE USER JOURNEY (ONBOARDING MUST SHOW MULTI-CHANNEL)
+1) Sign up / Login
+2) Connect Channels screen shows 4 options with logos:
+   - Airbnb
+   - Booking.com
+   - Expedia
+   - TripAdvisor
+3) User can connect 1–4 channels (MOCK connect)
+4) Import listings from connected channels
+5) Map each external listing -> internal Listing (auto-map if names match; otherwise user selects)
+6) First sync completes and Home shows “All channels synced ✅” or warnings per channel
+
+KEY IDEA
+- Internally, Hoster uses one unified model:
+  - Listings, Reservations, Conversations, Messages, CalendarDays
+- Each channel has a Provider Adapter that can:
+  - listListings()
+  - listReservations(sinceCursor)
+  - listMessages(sinceCursor)
+  - pushCalendarBlock(listingExternalId, dateRange)
+  - sendMessage(conversationExternalId/reservationExternalId, body)
+- The UI and internal services never depend on channel-specific fields.
+
+DATABASE MODEL (Prisma)
+Create Prisma models with indexes + constraints:
+
+1) User
+- id, name, email(unique), passwordHash, timezone, createdAt
+
+2) Channel
+- id, key (AIRBNB|BOOKING|EXPEDIA|TRIPADVISOR), name, logoUrl
+
+3) ChannelConnection
+- id, userId(index), channelId(index), status(CONNECTED|DISCONNECTED|ERROR),
+  accessToken(encrypted nullable for mock), refreshToken(encrypted nullable), lastSyncAt, cursor(nullable), lastError(nullable)
+- Unique: (userId, channelId)
+
+4) Listing
+- id, userId(index), name, status(ACTIVE|INACTIVE), createdAt
+
+5) ExternalListingMap
+- id, listingId(index), channelId(index), externalListingId, externalName, lastSyncedAt
+- Unique: (channelId, externalListingId)
+- Unique: (listingId, channelId)
+
+6) Reservation
+- id, listingId(index), channelId(index), externalReservationId, guestName,
+  checkIn(date), checkOut(date),
+  status(INQUIRY|CONFIRMED|CANCELED|CHECKED_IN|CHECKED_OUT),
+  totalAmount(nullable), currency(nullable), updatedAt
+- Unique: (channelId, externalReservationId)
+
+7) CalendarDay
+- id, listingId(index), date(date),
+  status(AVAILABLE|BLOCKED|RESERVED),
+  source(MANUAL|CHANNEL),
+  note(nullable)
+- Unique: (listingId, date)
+
+8) Conversation
+- id, listingId(index), channelId(index), reservationId(unique), guestName,
+  externalThreadId(nullable), lastMessageAt, unreadCount
+- Unique: (channelId, externalThreadId) where not null
+
+9) Message
+- id, conversationId(index),
+  direction(INBOUND|OUTBOUND),
+  body,
+  sentAt,
+  channelMessageId(nullable)
+- Unique: (conversationId, channelMessageId) where not null
+
+10) Template
+- id, userId(index), name, body
+- Seed: Welcome, Check-in instructions, Thank you
+
+11) ReminderSetting
+- id, userId(unique),
+  autoCheckinMessage(bool),
+  cleaningReminder(bool),
+  enabled(bool)
+
+12) Notification
+- id, userId(index), type, title, body, entityType, entityId, createdAt, readAt(nullable)
+
+13) AuditLog (optional but recommended)
+- id, userId(index), action, entityType, entityId, meta(JSON), createdAt
+
+DOUBLE BOOKING PREVENTION (MVP LOGIC)
+- A listing can be connected to multiple channels.
+- Before inserting/updating any CONFIRMED reservation:
+  - Check for overlaps on the same internal listing across ALL channels.
+- If conflict:
+  - Do not overwrite existing confirmed reservation.
+  - Create Notification type=DOUBLE_BOOKING_RISK
+  - Mark the channel connection status=ERROR with lastError describing conflict.
+
+CALENDAR SOURCE OF TRUTH (MVP)
+- RESERVED days are derived from CONFIRMED reservations across channels.
+- BLOCKED days are stored as CalendarDay with source=MANUAL.
+- Rendering priority:
+  1) RESERVED (if any reservation covers date)
+  2) BLOCKED
+  3) AVAILABLE
+
+APP SCREENS (ONLY 5)
+Bottom tabs: Home / Calendar / Inbox / Settings
+Chat opens from Inbox (not a tab)
+
+1) HOME (Daily Overview)
+- Cards:
+  - Next check-in (guest + channel + date)
+  - Next check-out
+  - Unread messages
+  - Channel sync status summary:
+    - “All channels synced ✅” OR list each channel with status badge
+- Quick actions: View Calendar, View Inbox
+- Alerts area: Sync error, double booking risk
+
+2) CALENDAR
+- Listing selector (internal Listing)
+- Channel badges for that listing showing connected channels
+- Monthly calendar with color-coded days:
+  - Booked (reserved)
+  - Blocked
+  - Available
+- Tap day -> Block/Unblock
+- When user blocks/unblocks:
+  - Update internal CalendarDay
+  - Call providerAdapter.pushCalendarBlock for each connected channel mapped to that listing (MOCK for MVP)
+  - Log success/failure per channel connection
+
+3) INBOX
+- Unified conversations across ALL channels
+- Each row shows:
+  - guestName
+  - channel icon (Airbnb/Booking/Expedia/TripAdvisor)
+  - stay dates
+  - last message preview
+  - unread badge
+- Filter: All / Airbnb / Booking / Expedia / TripAdvisor (optional simple chips)
+
+4) CHAT
+- Thread view with channel badge at top
+- Message input + Send
+- Templates button inserts template into composer
+- Sending message calls providerAdapter.sendMessage (MOCK)
+- Show sending/sent/failed states
+
+5) SETTINGS
+- Connect Channels (Airbnb/Booking/Expedia/TripAdvisor) with status badges and connect/disconnect buttons
+- Listings (read-only) + “Import/Resync listings”
+- Template editor (3 templates)
+- Reminder toggles:
+  - Auto check-in message
+  - Cleaning reminder
+- Sync tools:
+  - “Run sync now”
+  - Show lastSyncAt per channel
+- Logout
+
+MOCK PROVIDERS (MUST FEEL REAL)
+Implement 4 mock providers:
+- MockAirbnbProvider
+- MockBookingProvider
+- MockExpediaProvider
+- MockTripadvisorProvider
+
+Each provider should:
+- Seed 1–3 external listings with distinct IDs
+- Seed 5–15 reservations across next 60 days
+- Seed message threads per reservation
+- On each sync, randomly generate:
+  - new inbound message
+  - reservation created
+  - reservation canceled
+  - reservation updated (date change)
+- Provide stable deterministic behavior per user (e.g., seeded random by userId) to avoid chaos
+
+SYNC ENGINE (SERVER-SIDE)
+Implement endpoints:
+- POST /api/providers/connect (channelKey) -> marks ChannelConnection CONNECTED and seeds provider state
+- POST /api/providers/disconnect (channelKey)
+- POST /api/sync/run -> runs sync for all CONNECTED channels:
+  - fetch listings/reservations/messages since cursor
+  - upsert into DB
+  - update cursors + lastSyncAt
+  - create notifications for new booking/message
+- GET /api/sync/status -> per-channel status for UI
+
+CRON REMINDERS (SERVER-SIDE)
+- POST /api/cron/daily (protected by CRON_SECRET)
+Runs once per day:
+- If autoCheckinMessage enabled: for reservations with checkIn = tomorrow, send “Check-in instructions” via providerAdapter.sendMessage (MOCK) and log as OUTBOUND message
+- If cleaningReminder enabled: for reservations with checkOut = today, create Notification “Cleaning reminder”
+
+AUTH
+- Signup/Login/Logout
+- Protected routes
+- Basic validation (zod)
+
+UX REQUIREMENTS (MOBILE-FIRST)
+- Calm, clean UI
+- Large tap targets
+- Minimal text, no jargon
+- Clear empty states
+- Clear error states and “what to do next” messages
+
+DELIVERABLES
+1) Full Next.js project with Prisma schema + migrations
+2) Seed script for templates + optional demo user
+3) Auth working
+4) All 5 screens implemented and connected
+5) 4 mock provider adapters + connect/disconnect
+6) Sync engine endpoints + “Run sync now”
+7) Cron daily endpoint for reminders
+8) README with:
+   - setup steps
+   - env vars
+   - how to run sync + cron
+   - how to use multi-channel onboarding
+
+ENV VARS
+- DATABASE_URL
+- NEXTAUTH_SECRET
+- CRON_SECRET
+
+QUALITY BAR
+- Type-safe code, minimal but clean architecture
+- Input validation (zod)
+- Error handling + toast notifications
+- No scraping, no unofficial integrations
+- Modular provider interface for future real integrations
+
+BUILD ORDER
+1) Prisma schema + migrations
+2) Auth
+3) Provider interface + mock providers
+4) Sync engine endpoints + DB upserts
+5) UI components (Card, Badge, BottomTabs, Sheet/Modal)
+6) 5 screens + navigation
+7) Reminders cron
+8) Polish: empty/error states + README

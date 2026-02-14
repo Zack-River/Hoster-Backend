@@ -1,0 +1,20 @@
+{
+  "name": "Hoster - Rental Management",
+  "short_name": "Hoster",
+  "description": "Manage multi-channel bookings, availability, and guest messages in one place",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F9F9F9",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "en"
+}

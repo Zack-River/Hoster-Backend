@@ -1,0 +1,153 @@
+You are a senior product engineer. The Hoster app already exists with the following mobile screens:
+- Home
+- Calendar
+- Inbox
+- Chat
+- Settings
+
+DO NOT redesign from scratch.
+DO NOT add new main screens.
+ONLY adjust UI, UX, and logic to improve channel readiness, compliance, and clarity.
+
+The app is B2C, mobile-first, single-user.
+
+Your task is to APPLY THE FOLLOWING CHANGES ONLY.
+
+--------------------------------
+1) HOME SCREEN ADJUSTMENTS
+--------------------------------
+Current Home shows:
+- Availability
+- Occupancy
+- Revenue
+- Next check-in / check-out
+- Upcoming reservations
+
+ADJUSTMENTS:
+- Add a “Channel Health Summary” card:
+  - If all channels healthy → “All channels synced ✅”
+  - If any channel has an issue → show icons with warning badges
+- Add alert banners when applicable:
+  - “Mapping required for some listings”
+  - “Bookable until DATE (extend availability)”
+  - “Sync error detected”
+- Alerts must be tappable and deep-link to Settings
+
+DO NOT add analytics charts or complexity.
+
+--------------------------------
+2) CALENDAR SCREEN ADJUSTMENTS
+--------------------------------
+Current Calendar:
+- Monthly view
+- Listing selector
+- Channel badges
+- Booked / Blocked / Open legend
+
+ADJUSTMENTS:
+- Support navigating at least 12 months forward
+- Add a small label above calendar:
+  - “Bookable until: DATE”
+- When blocking/unblocking dates:
+  - Apply the change to all connected channels for that listing
+  - Show per-channel success/failure feedback (toast or inline)
+- If a channel does not allow calendar writes:
+  - Show calendar as read-only for that channel
+  - Display a small note: “Calendar is view-only for this channel”
+
+--------------------------------
+3) INBOX & CHAT ADJUSTMENTS
+--------------------------------
+Current Inbox:
+- Unified conversations
+- Channel filters
+- Unread badges
+
+ADJUSTMENTS:
+- Show channel badge clearly in both Inbox list and Chat header
+- If messaging permission is missing for a channel:
+  - Disable message input
+  - Show message: “Messaging not available for this channel”
+- Preserve current UX; no new screens
+
+--------------------------------
+4) SETTINGS SCREEN — MOST IMPORTANT CHANGES
+--------------------------------
+Current Settings:
+- Connected channels list
+- Listings list
+- Import button
+
+ADJUSTMENTS:
+Rename and structure Settings into clear sections:
+
+A) CHANNEL HEALTH CENTER
+For each channel (Airbnb, Booking.com, Expedia, TripAdvisor), show:
+- Status badge: Connected / Error / Disconnected
+- Last sync time
+- Last error (if any)
+- Impacted modules icons:
+  - Calendar
+  - Reservations
+  - Messages
+- Buttons:
+  - Run sync now
+  - Disconnect
+  - Delete channel data (destructive action)
+
+B) DATA CONTROLS (REQUIRED)
+When “Delete channel data” is tapped:
+- Confirm with warning modal
+- Delete all data related to that channel:
+  - Reservations
+  - Messages
+  - Conversations
+  - External listing mappings
+- After completion, show confirmation toast and notification
+
+C) LISTING MAPPING STATUS
+For each listing:
+- Show connected channels
+- Show mapping status:
+  - Mapped ✅
+  - Unmapped ❌ (action required)
+- If unmapped:
+  - Show warning badge
+  - Prevent calendar writes for that channel
+
+--------------------------------
+5) LOGIC & STATE ADJUSTMENTS (NO UI EXPANSION)
+--------------------------------
+- Store per-channel granted permissions:
+  - Calendar read/write
+  - Messages read/write
+- UI must gracefully degrade if permissions are missing
+- Prevent double bookings across channels:
+  - If conflict detected:
+    - Do not overwrite data
+    - Show Home alert
+    - Mark channel status as ERROR
+
+--------------------------------
+6) UX RULES (DO NOT BREAK)
+--------------------------------
+- Keep the app mobile-only
+- Keep bottom navigation exactly as-is
+- No new tabs or main screens
+- No enterprise terminology
+- No advanced configuration screens
+- All changes must feel lightweight and understandable for a solo host
+
+--------------------------------
+7) FINAL DELIVERABLE
+--------------------------------
+- Update existing components and logic only
+- Reuse current UI patterns (cards, badges, lists)
+- Add minimal new components if absolutely required (alerts, status rows)
+- Ensure the app feels more “trustworthy and integration-ready” without feeling more complex
+
+Proceed step by step:
+1) Update Settings screen (Channel Health + Data Controls)
+2) Add Home alerts
+3) Adjust Calendar horizon + feedback
+4) Apply permission-based UI states

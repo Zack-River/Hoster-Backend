@@ -1,0 +1,61 @@
+# Implementation Plan - React Vite to Next.js Migration
+
+## Goal Description
+Migrate the existing React Vite frontend (`client` directory) to Next.js 14+ using the App Router. The goal is to achieve superior SEO, performance (Core Web Vitals), and maintainability while preserving the existing UI/UX.
+
+## User Review Required
+> [!IMPORTANT]
+> **Backup**: Ensure you have a git commit or backup of the current state before we begin heavy modifications.
+> **Backend Integration**: We will assume the Next.js app communicates with the existing Express server API. If "Server Actions" are desired for direct DB access, we would need to migrate Prisma/DB logic into the Next.js app, which is a larger scope. For now, we assume **API Consumption**.
+
+## Proposed Changes
+
+### 1. Project Restructuring
+We will transform the root-level configuration to support Next.js or wrap the Next.js app properly.
+- **New Dependencies**: `next`, `sharp`, `next-sitemap`, `@next/bundle-analyzer`.
+- **Removed**: `vite`, `@vitejs/*`, `wouter`.
+- **Config**: Create `next.config.js`, [tailwind.config.ts](file:///home/zack-river/Documents/Hoster/tailwind.config.ts) (update for Next.js), [tsconfig.json](file:///home/zack-river/Documents/Hoster/tsconfig.json) (update for Next.js).
+
+### 2. Folder Structure Changes (App Router)
+The `client/src` directory will be reorganized into the Next.js App Router structure:
+
+```
+client/src/
+├── app/                  # New App Router
+│   ├── layout.tsx        # Root Layout (Html, Body, Providers)
+│   ├── page.tsx          # Homepage (Static)
+│   ├── globals.css       # Global styles (moved from index.css)
+│   ├── blog/             # Blog Routes
+│   │   ├── [slug]/
+│   │   │   └── page.tsx
+│   │   └── page.tsx
+│   └── (dashboard)/      # Grouped routes for App
+│       └── ...
+├── components/           # Shared Components
+├── lib/                  # Utilities
+└── ...
+```
+
+### 3. SEO Implementation Strategy
+- **Metadata**: Use `export const metadata: Metadata = { ... }` in `layout.tsx` and `page.tsx` files.
+- **Sitemap**: `next-sitemap` script in `postbuild`.
+- **Structured Data**: Create a `<JsonLd />` component to inject schema markup.
+
+### 4. Performance Strategy
+- **Images**: Bulk replace `<img />` with `<Image />`.
+- **Fonts**: use `next/font/google`.
+- **Scripts**: use `next/script` with `strategy="lazyOnload"`.
+- **Static vs Dynamic**: 
+    - Home/Landing -> `export const dynamic = 'force-static'`
+    - Dashboard -> Default (Dynamic/SSR)
+
+## Verification Plan
+
+### Automated Tests
+- Run `npm run build` to verify Type safety and Build success.
+- Run Bundle Analyzer to verify chunk sizes.
+
+### Manual Verification
+- **Visual Check**: Compare original Vite app with Next.js app on `localhost:3000`.
+- **SEO Check**: Inspect Page Source for `<title>`, `<meta>`, and `application/ld+json`.
+- **Lighthouse**: Run Chrome DevTools Lighthouse audit to verify Performance > 90.

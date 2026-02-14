@@ -1,0 +1,302 @@
+Roles (Simplified)
+1) Unit Owner (Host)
+
+Manages listings, calendar, guest messages, and requests services.
+
+2) Service Provider (Cleaning + Maintenance)
+
+Receives service requests, schedules jobs, completes tasks, uploads proof, and manages services offered.
+
+1) Signup: “Are you?”
+Option A: Unit Owner
+Option B: Service Provider
+
+Role is stored on user profile and determines:
+
+onboarding steps
+
+dashboard tabs
+
+features visible
+
+2) Flow: Unit Owner (Host)
+Signup Steps
+
+Create account
+
+Connect channels (Airbnb / Booking / Expedia / TripAdvisor)
+
+Import listings
+
+Map listings
+
+Ready
+
+Dashboard Tabs (keep your current)
+
+Home
+
+Calendar
+
+Inbox
+
+Settings
+
+Host Key Actions
+
+View today’s check-ins / check-outs
+
+Manage availability (block/unblock)
+
+Reply to guests
+
+Browse service providers
+
+Request service
+
+Subscribe (auto-request) to a provider
+
+Turn on “Automation” for check-in/out messages + service requests
+
+3) Flow: Service Provider (Cleaning + Maintenance)
+Signup Steps (B2C-simple, not enterprise)
+
+Company / Provider Name
+
+Phone + email
+
+Service area:
+
+City + neighborhoods (multi-select)
+
+Services offered (toggle list):
+
+Cleaning
+
+Deep cleaning
+
+Linen change
+
+AC
+
+Plumbing
+
+Electrical
+
+Handyman
+
+Emergency callout
+
+Pricing model (simple):
+
+Starting price (e.g., $30)
+
+Optional: add-on prices (linen, deep clean, emergency)
+
+Availability:
+
+Days of week + time window
+
+Ready
+
+Provider Dashboard Tabs (new navigation)
+
+Jobs
+
+Schedule
+
+Profile
+
+Settings
+
+A) Jobs
+
+New requests (Accept / Decline)
+
+Active jobs (Start / Complete)
+
+Completed jobs (photos + notes)
+
+Filter by service type (Cleaning / Maintenance)
+
+B) Schedule
+
+Calendar view of accepted jobs
+
+C) Profile
+
+Edit services offered
+
+Edit pricing
+
+Edit service area
+
+Photos of work (optional)
+
+D) Settings
+
+Notifications
+
+Working hours
+
+Account logout
+
+4) How “Requests Inside the App” Works (Single Flow)
+Request Lifecycle (simple statuses)
+
+REQUESTED
+
+ACCEPTED
+
+IN_PROGRESS
+
+COMPLETED
+
+CANCELED
+
+Host → Provider flow
+
+Host chooses a provider (from Cleaning Services screen)
+
+Host taps Request Service
+
+Choose:
+
+Service type (Cleaning / Maintenance)
+
+Listing
+
+Date/time
+
+Notes + access info (lockbox code / instructions)
+
+Provider gets in-app request
+
+Provider Accepts/Declines
+
+If accepted:
+
+Status → IN_PROGRESS → COMPLETED
+
+Provider uploads proof (photos + checklist)
+
+Host confirms completion (optional in MVP)
+
+5) Update Your Current “Cleaning Services” Screen
+
+Replace “Subscribe” only with:
+
+Primary CTA: Request
+
+Secondary CTA: Subscribe
+
+What “Subscribe” means (MVP)
+
+Subscribe = “Preferred provider for this listing”
+
+Auto-create a service request on checkout (when enabled)
+
+Default time window (e.g., 12 PM)
+
+6) Add “Automation” in Settings (Host only)
+
+Settings → Automation includes:
+
+Auto check-in message
+
+Auto checkout thank-you
+
+Cleaning/service automation:
+
+Toggle: Auto request service on checkout
+
+Choose preferred provider
+
+Choose default time window
+
+Provider does NOT see guest messaging automations.
+
+7) Minimal Database Changes (Clean & Scalable)
+User
+
+role: HOST | PROVIDER
+
+ProviderProfile
+
+userId
+
+displayName
+
+phone
+
+serviceAreas (JSON)
+
+servicesOffered (JSON array)
+
+startingPrice
+
+availability (JSON)
+
+rating (optional), reviewCount (optional)
+
+ServiceRequest (Job)
+
+id
+
+hostUserId
+
+providerUserId
+
+listingId
+
+reservationId (nullable)
+
+type: CLEANING | MAINTENANCE
+
+scheduledAt
+
+status
+
+notes
+
+accessInfo (encrypted)
+
+createdAt, updatedAt
+
+ServiceChecklistItem
+
+serviceRequestId
+
+label
+
+isDone
+
+ServiceAttachment
+
+serviceRequestId
+
+url
+
+uploadedByRole (HOST/PROVIDER)
+
+createdAt
+
+ServiceSubscription
+
+hostUserId
+
+listingId
+
+providerUserId
+
+enabled
+
+defaultTimeWindow
+
+8) UX Rule to Keep It From Getting Confusing
+
+Host UI never shows provider dashboard tabs
+
+Provider UI never shows guest inbox/calendar for bookings
+
+Same app, different “mode”

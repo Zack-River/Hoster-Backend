@@ -1,0 +1,269 @@
+You are a senior full-stack engineer. I already have a B2C, mobile-first Next.js (App Router) + TypeScript + Tailwind + Prisma + Postgres app called “Hoster” with these existing screens:
+- Home
+- Calendar
+- Inbox
+- Chat
+- Settings (includes a new Automation section or will include it)
+
+DO NOT rebuild the app.
+DO NOT add new bottom tabs or new main screens.
+ONLY implement/extend Settings → Automation and the backend logic to support a 3-step check-in automation flow + PDF brochure upload, while keeping everything B2C-simple (toggles + templates + previews + logs).
+
+GOAL
+Implement this exact automation journey for each reservation:
+1) Welcome message: send 10 minutes after booking confirmation
+   - includes general info
+   - includes an optional attached PDF/brochure link (uploaded by host)
+2) Access message: send 30 minutes before check-in time
+   - includes door code + Wi-Fi SSID/password
+3) Post check-in message: send 1 hour after check-in time
+
+Also:
+- Each automation must run only once per reservation (idempotency).
+- If required data is missing (e.g., check-in time, door code), automation is PAUSED and a clear alert is created.
+- Respect channel constraints: if messaging write permission is missing, automation is PAUSED for that channel.
+- Add an “Automation Log” showing recent automated actions (success/failed/paused) for trust.
+
+-----------------------------------------
+1) SETTINGS → AUTOMATION UI (MOBILE-FIRST)
+-----------------------------------------
+Under Settings, add/open “Automation” page with ONE section “Check-in Messages” containing 3 cards:
+
+A) Welcome Message (10 minutes after booking)
+- Toggle ON/OFF (default ON)
+- Small text: “Sent 10 minutes after booking confirmation”
+- Button: “Edit message”
+- PDF brochure attachment:
+  - Toggle: “Attach brochure PDF” (default OFF)
+  - If ON: show current file name + “Upload/Replace PDF”
+  - Show a preview line: “PDF link will be included in the message”
+
+B) Access Message (30 minutes before check-in)
+- Toggle ON/OFF (default ON)
+- Small text: “Sent 30 minutes before check-in”
+- Button: “Edit message”
+- Required secure fields (editable per listing OR global default):
+  - Default check-in time (HH:MM) per listing (e.g., 15:00)
+  - Door code/password (encrypted)
+  - Wi-Fi SSID (encrypted)
+  - Wi-Fi password (encrypted)
+- If a required field is missing, show inline warning:
+  - “Paused: missing door code” / “Paused: missing check-in time”
+
+C) Follow-up Message (1 hour after check-in)
+- Toggle ON/OFF (default ON)
+- Small text: “Sent 1 hour after check-in”
+- Button: “Edit message”
+
+At bottom:
+- “Recent automated actions” list (last 20)
+  - action type, guest, listing, channel, timestamp, status (SUCCESS/FAILED/PAUSED), reason if paused/failed
+
+UI RULES
+- No rule builder.
+- Only toggles, timing (fixed), template editor, file upload, secure fields.
+- Keep simple and calm; reuse existing UI components (cards, toggles, sheets/modals, toasts).
+
+-----------------------------------------
+2) DATA MODEL (PRISMA) — ADD/UPDATE
+-----------------------------------------
+Add/extend models (adapt to your existing names):
+
+A) AutomationSettings (one row per user)
+- userId (unique)
+- welcomeEnabled boolean DEFAULT true
+- welcomeIncludePdf boolean DEFAULT false
+- accessEnabled boolean DEFAULT true
+- followupEnabled boolean DEFAULT true
+- updatedAt
+
+B) AutomationTemplate (or extend existing Template table)
+Templates are per-user:
+- id
+- userId (index)
+- key enum:
+  - WELCOME_10MIN
+  - ACCESS_30MIN
+  - FOLLOWUP_1H
+- body text
+- updatedAt
+Seed defaults:
+- WELCOME_10MIN: warm welcome + general info + brochure link placeholder
+- ACCESS_30MIN: door code + wifi info + reminder
+- FOLLOWUP_1H: “Hope everything is great…”
+
+C) ListingAutomationConfig (per listing; supports multiple listings cleanly)
+- id
+- listingId (unique)
+- defaultCheckinTime string "HH:MM" nullable
+- doorCodeEncrypted string nullable
+- wifiSsidEncrypted string nullable
+- wifiPasswordEncrypted string nullable
+- brochurePdfUrl string nullable
+- brochurePdfFilename string nullable
+- updatedAt
+
+D) AutomationActionLog (idempotency + audit)
+- id
+- userId (index)
+- listingId nullable
+- reservationId (index)
+- channelId nullable
+- actionType enum:
+  - SEND_WELCOME_10MIN
+  - SEND_ACCESS_30MIN
+  - SEND_FOLLOWUP_1H
+- status enum: SUCCESS | FAILED | PAUSED
+- reason nullable (MISSING_DOOR_CODE, MISSING_CHECKIN_TIME, NO_MESSAGE_PERMISSION, QUIET_HOURS, SEND_FAILED, etc.)
+- messageId nullable
+- dedupeKey string unique
+- createdAt
+
+E) ChannelConnection requirements (existing)
+- store grantedScopes (must include MESSAGES_WRITE to send)
+- store status CONNECTED/DISCONNECTED/ERROR
+
+F) ExternalListingMap requirement (existing)
+- mappingStatus must be MAPPED for channel operations to proceed
+
+-----------------------------------------
+3) FILE UPLOAD (PDF BROCHURE)
+-----------------------------------------
+Implement a secure MVP PDF upload:
+- Storage: local /uploads for MVP (like you used before), or a simple object storage abstraction if already present.
+- Accept only PDF mime type, max size 10MB.
+- Upload per LISTING (ListingAutomationConfig.brochurePdfUrl).
+- Provide endpoint:
+  - POST /api/listings/:listingId/brochure (multipart/form-data)
+  - Return url + filename
+- Add delete/replace support (optional).
+
+When welcomeIncludePdf is ON and brochurePdfUrl exists:
+- Insert a link in the message: “House Guide: {url}”
+- If welcomeIncludePdf ON but no file uploaded:
+  - PAUSE the welcome automation for that listing/reservation with reason MISSING_PDF
+  - show UI warning in Automation.
+
+-----------------------------------------
+4) TEMPLATE VARIABLE RENDERING
+-----------------------------------------
+Implement minimal template variables:
+- {{GuestName}}
+- {{ListingName}}
+- {{CheckInDate}}
+- {{CheckInTime}}
+- {{CheckOutDate}}
+- {{DoorCode}}
+- {{WifiName}}
+- {{WifiPassword}}
+- {{BrochureLink}}
+
+Render these from:
+- Reservation data + ListingAutomationConfig + PDF url
+
+If a variable is required by the ACCESS template and missing (door code or wifi), PAUSE and log.
+
+-----------------------------------------
+5) AUTOMATION ENGINE (SERVER-SIDE) + CRON
+-----------------------------------------
+Implement cron-driven execution (no external queue).
+
+A) Cron endpoints (protected by CRON_SECRET):
+1) POST /api/cron/every10min
+Runs every 10 minutes and performs:
+- Welcome 10-min after booking:
+  - Find reservations CONFIRMED where createdAt between (now-20min) and (now-10min) OR equivalent logic using “bookedAt” if you have it.
+  - For each reservation, attempt SEND_WELCOME_10MIN if welcomeEnabled.
+- Access 30-min before check-in:
+  - Find reservations CONFIRMED where checkInDateTime is within next 30 minutes (now+30min window) and not already sent.
+  - attempt SEND_ACCESS_30MIN if accessEnabled.
+- Follow-up 1 hour after check-in:
+  - Find reservations CONFIRMED where checkInDateTime was 60 minutes ago (now-60min window) and not already sent.
+  - attempt SEND_FOLLOWUP_1H if followupEnabled.
+
+2) (Optional) keep existing /api/cron/daily for cleaning reminders and other automations.
+
+B) Timezone correctness:
+- Use user timezone OR listing timezone if stored.
+- Compute checkInDateTime using:
+  - reservation.checkIn date + ListingAutomationConfig.defaultCheckinTime
+  - If reservation has an override check-in time, use it.
+
+C) Idempotency:
+Before sending any automation:
+- dedupeKey = `${actionType}:${reservationId}`
+- If a log exists with this dedupeKey => do nothing.
+
+D) Channel-aware pause checks (must implement):
+canSendAutomatedMessage(userId, channelId, listingId) checks:
+- ChannelConnection status CONNECTED
+- grantedScopes includes MESSAGES_WRITE
+- ExternalListingMap for (listingId, channelId) exists and is MAPPED
+If any fail => create AutomationActionLog status=PAUSED reason=NO_MESSAGE_PERMISSION / CHANNEL_DISCONNECTED / UNMAPPED_LISTING
+
+E) Missing data pause checks:
+- For ACCESS_30MIN:
+  - require defaultCheckinTime (or reservation override)
+  - require doorCode
+  - require wifiSsid + wifiPassword
+If missing => PAUSED with specific reason and create an in-app Notification to host.
+
+- For WELCOME_10MIN:
+  - if welcomeIncludePdf ON, require brochurePdfUrl; else PAUSED reason MISSING_PDF
+
+F) Sending messages:
+For MVP you may already have mock provider adapters; use them:
+- providerAdapter.sendMessage(externalThreadId/reservationExternalId, body)
+Also persist message in DB as OUTBOUND.
+
+If send fails => status FAILED and create Notification “Automation failed: …”
+
+-----------------------------------------
+6) API ROUTES (FOR UI)
+-----------------------------------------
+Add these authenticated endpoints (or server actions):
+
+- GET /api/automation/checkin -> settings + templates + per-listing config summary (missing field warnings)
+- PUT /api/automation/checkin/settings -> update toggles (welcomeEnabled, welcomeIncludePdf, accessEnabled, followupEnabled)
+- PUT /api/automation/checkin/templates/:key -> update template body
+- GET /api/listings/:listingId/automation -> get ListingAutomationConfig
+- PUT /api/listings/:listingId/automation -> update defaultCheckinTime + doorCode + wifi fields
+- POST /api/listings/:listingId/brochure -> upload PDF
+- GET /api/automation/logs?limit=20 -> recent AutomationActionLog
+
+-----------------------------------------
+7) NOTIFICATIONS & WARNINGS (MUST SURFACE)
+-----------------------------------------
+Create in-app notifications when:
+- automation paused due to missing door code / missing check-in time / missing pdf
+- automation paused due to channel disconnected / missing message permission / unmapped listing
+- automation failed due to send error
+
+Surface these warnings in:
+- Settings → Automation (inline)
+- Home alerts (if you already added alerts)
+
+-----------------------------------------
+8) DEFINITION OF DONE
+-----------------------------------------
+- Settings → Automation implements the 3-step check-in flow with toggles and template editing
+- PDF brochure upload works and inserts link into welcome message
+- Listing-level secure fields exist and are editable (check-in time, door code, wifi)
+- Cron endpoint every10min executes and logs actions with idempotency
+- Automations pause safely with clear reasons and notifications
+- Recent automated actions log is visible and accurate
+- No new tabs/screens beyond Settings → Automation; keep mobile-first
+
+ENV VARS
+- DATABASE_URL
+- NEXTAUTH_SECRET
+- CRON_SECRET
+- ENCRYPTION_SECRET
+
+Proceed step-by-step:
+1) Prisma migrations + seed templates + default AutomationSettings + ListingAutomationConfig
+2) File upload endpoint + storage + PDF link insertion
+3) Automation services (pause checks, renderer, idempotency)
+4) Cron /api/cron/every10min implementation
+5) Settings → Automation UI wiring + listing config editor sheet
+6) Logs + notifications polish

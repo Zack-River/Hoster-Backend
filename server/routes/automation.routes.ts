@@ -1,0 +1,24 @@
+import { Router } from "express";
+import { automationController } from "../controllers/automation.controller";
+import { isAuthenticated } from "../middleware/auth.middleware";
+
+const router = Router();
+
+router.get("/automation/checkin", isAuthenticated, automationController.getCheckin);
+router.put("/automation/checkin/settings", isAuthenticated, automationController.updateCheckinSettings);
+router.put("/automation/checkin/templates/:key", isAuthenticated, automationController.updateCheckinTemplate);
+router.put("/listings/automation/apply-all", isAuthenticated, automationController.applyAll);
+router.get("/listings/:listingId/automation", isAuthenticated, automationController.getListingAutomation);
+router.put("/listings/:listingId/automation", isAuthenticated, automationController.updateListingAutomation);
+
+router.post("/cron/daily", automationController.cronDaily);
+router.post("/cron/every10min", automationController.cronEvery10Min);
+
+router.post("/templates", isAuthenticated, automationController.createTemplate);
+router.patch("/templates/:id", isAuthenticated, automationController.updateTemplate);
+router.delete("/templates/:id", isAuthenticated, automationController.deleteTemplate);
+
+router.patch("/reminder-settings", isAuthenticated, automationController.updateReminderSettings);
+router.put("/automation/settings", isAuthenticated, automationController.updateAutomationSettings);
+
+export default router;

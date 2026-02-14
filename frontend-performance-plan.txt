@@ -1,0 +1,498 @@
+🧠 1️⃣ Architecture First (Biggest Impact)
+✅ Use Server Components by Default
+
+In App Router:
+
+Everything is Server Component unless you add:
+
+"use client"
+
+
+Rule:
+Only use "use client" when:
+
+You need state
+
+You need event handlers
+
+You need browser APIs
+
+Less client components = less JS shipped = faster.
+
+✅ Split Layout Properly
+
+Do NOT put heavy components inside layout.tsx.
+
+Because layout loads on every page.
+
+Keep layout:
+
+Navbar
+
+Footer
+
+Minimal logic
+
+🚀 2️⃣ Rendering Strategy Optimization
+🟢 Static Pages (Best Performance)
+
+Use:
+
+export const dynamic = "force-static"
+
+
+For:
+
+Landing pages
+
+Blog
+
+Marketing pages
+
+🟡 ISR (Best Balance)
+export const revalidate = 60;
+
+
+Good for:
+
+Listings
+
+Products
+
+Blog updates
+
+🔴 Avoid Unnecessary SSR
+
+SSR increases TTFB.
+
+Only use SSR when:
+
+User-specific content
+
+Private data
+
+📦 3️⃣ Reduce JavaScript Bundle Size
+🔥 Golden Rule:
+
+Less JS = Faster Website
+
+✅ Use Dynamic Imports
+import dynamic from "next/dynamic";
+
+const HeavyChart = dynamic(() => import("./Chart"), {
+  loading: () => <p>Loading...</p>,
+});
+
+
+Only load when needed.
+
+✅ Analyze Bundle
+
+Install:
+
+npm install @next/bundle-analyzer
+
+
+Check:
+
+Large libraries
+
+Duplicate dependencies
+
+Huge UI frameworks
+
+🚫 Avoid Heavy Libraries
+
+Bad:
+
+Full moment.js
+
+Large icon packs
+
+Huge animation libs
+
+Better:
+
+date-fns
+
+lucide-react
+
+framer-motion (carefully)
+
+🖼 4️⃣ Image Optimization (Major LCP Impact)
+
+Always use:
+
+import Image from "next/image";
+
+
+Use:
+
+<Image
+  src="/hero.webp"
+  width={1200}
+  height={600}
+  priority
+  alt="Hero"
+/>
+
+✅ Use modern formats
+
+WebP
+
+AVIF
+
+✅ Avoid:
+
+Huge background images in CSS
+
+⚡ 5️⃣ Core Web Vitals Optimization
+🔥 LCP
+
+Optimize hero section
+
+Use priority image
+
+Avoid blocking fonts
+
+⚡ CLS
+
+Always define:
+
+width
+
+height
+
+min-height placeholders
+
+🧠 INP
+
+Reduce client JS
+
+Avoid heavy hydration
+
+Debounce expensive events
+
+🌍 6️⃣ Caching Strategy (Massive Impact)
+✅ Use Next Fetch Caching
+fetch(url, {
+  next: { revalidate: 60 },
+});
+
+✅ Use CDN
+
+Best:
+
+Vercel Edge
+
+Cloudflare
+
+Enable:
+
+Brotli compression
+
+HTTP/3
+
+🧊 7️⃣ Font Optimization
+
+Use:
+
+import { Inter } from "next/font/google";
+
+const inter = Inter({
+  subsets: ["latin"],
+});
+
+
+Avoid:
+
+Loading 5 font weights
+
+Loading unused subsets
+
+🧹 8️⃣ Remove Unused CSS
+
+If using Tailwind:
+
+Make sure content is correct in config:
+
+content: ["./app/**/*.{js,ts,jsx,tsx}"]
+
+🔄 9️⃣ Avoid Over-Fetching
+
+Bad:
+
+const data = await fetch("/api/all-data");
+
+
+Better:
+Fetch only what page needs.
+
+🧠 1️⃣0️⃣ Smart Data Loading
+
+Use:
+
+Streaming
+
+Built-in with App Router.
+
+Suspense
+<Suspense fallback={<Loading />}>
+  <DataComponent />
+</Suspense>
+
+
+Improves perceived performance.
+
+📉 1️⃣1️⃣ Reduce Re-Renders
+
+In Client Components:
+
+Use memo
+
+Use useCallback
+
+Avoid large context providers
+
+🔐 1️⃣2️⃣ Avoid Hydrating Everything
+
+Hydration cost = big performance killer.
+
+Instead of:
+
+"use client"
+
+
+Wrap only small interactive part.
+
+🧪 1️⃣3️⃣ Monitor Performance
+
+Use:
+
+Lighthouse
+
+Web Vitals
+
+Vercel Analytics
+
+Chrome Performance tab
+
+Track:
+
+TTFB
+
+LCP
+
+INP
+
+CLS
+
+🧱 1️⃣4️⃣ Edge Middleware Carefully
+
+Middleware runs on every request.
+
+Keep it:
+
+Lightweight
+
+No heavy DB calls
+
+📁 1️⃣5️⃣ Optimize API Routes
+
+If using Next API:
+
+Add caching headers
+
+Avoid large JSON responses
+
+Paginate results
+
+🔥 1️⃣6️⃣ Avoid Layout Thrashing
+
+Bad:
+
+JS modifying DOM repeatedly
+
+Large reflows
+
+Heavy animations on scroll
+
+🧊 1️⃣7️⃣ Preload Critical Resources
+<link rel="preload" as="image" href="/hero.webp" />
+
+🚨 Biggest Performance Killers in Next.js
+
+Too many client components
+
+Large UI libraries
+
+No image optimization
+
+Huge API responses
+
+No caching strategy
+
+Putting logic in layout
+
+Loading unnecessary fonts
+
+🧠 1️⃣8️⃣ Production Build Optimization
+
+Always deploy:
+
+next build
+
+
+Never dev mode.
+
+🧠 1️⃣ Lazy Loading Components (Most Common)
+✅ Use next/dynamic
+import dynamic from "next/dynamic";
+
+const HeavyChart = dynamic(() => import("./HeavyChart"), {
+  loading: () => <p>Loading...</p>,
+});
+
+
+Now:
+
+HeavyChart JS is not included in main bundle
+
+It loads only when rendered
+
+✅ Disable SSR if Component is Client-Only
+
+For browser-only libraries (charts, maps):
+
+const Map = dynamic(() => import("./Map"), {
+  ssr: false,
+});
+
+
+Prevents:
+
+SSR crash
+
+Unnecessary server rendering
+
+Hydration mismatch
+
+🎯 When You SHOULD Lazy Load
+
+Charts
+
+Maps
+
+Modals
+
+Carousels
+
+Rich editors
+
+Analytics dashboards
+
+Heavy animation sections
+
+🚫 When NOT to Lazy Load
+
+Hero section
+
+Above-the-fold content
+
+Navigation
+
+Critical SEO content
+
+Because it can hurt LCP.
+
+🖼 2️⃣ Lazy Loading Images
+
+Next.js does this automatically.
+
+<Image
+  src="/image.webp"
+  width={800}
+  height={500}
+  alt="Example"
+/>
+
+
+By default:
+
+Images below viewport = lazy loaded
+
+🚀 For Hero Image (LCP)
+
+Use:
+
+<Image priority />
+
+
+Otherwise lazy loading hurts LCP.
+
+🧠 3️⃣ Lazy Load Sections on Scroll (Advanced)
+
+You can combine dynamic import + Intersection Observer.
+
+Example:
+
+"use client"
+import { useInView } from "react-intersection-observer";
+import dynamic from "next/dynamic";
+
+const HeavySection = dynamic(() => import("./HeavySection"));
+
+export default function Wrapper() {
+  const { ref, inView } = useInView({ triggerOnce: true });
+
+  return (
+    <div ref={ref}>
+      {inView && <HeavySection />}
+    </div>
+  );
+}
+
+
+Now:
+
+Section loads only when user scrolls to it.
+
+Great for:
+
+Landing pages
+
+Long marketing pages
+
+📦 4️⃣ Lazy Load Libraries (Huge Win)
+
+Instead of:
+
+import Fuse from "fuse.js";
+
+
+Do:
+
+const Fuse = (await import("fuse.js")).default;
+
+
+Load only when search is used.
+
+🧊 5️⃣ Lazy Load Modals
+
+Instead of always importing modal:
+
+const Modal = dynamic(() => import("./Modal"));
+
+
+Render only when open.
+
+⚡ 6️⃣ Lazy Loading + Suspense (App Router)
+
+You can use:
+
+<Suspense fallback={<Loading />}>
+  <LazyComponent />
+</Suspense>
+
+
+Improves perceived performance.

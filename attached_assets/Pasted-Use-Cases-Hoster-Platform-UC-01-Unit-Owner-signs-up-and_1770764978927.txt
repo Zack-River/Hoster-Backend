@@ -1,0 +1,233 @@
+Use Cases — Hoster Platform
+UC-01: Unit Owner signs up and manages listings
+
+Actor: Unit Owner (Host)
+Description:
+A unit owner signs up, connects booking channels, imports listings, and manages daily hosting operations from a mobile app.
+
+Flow:
+
+User selects role: Unit Owner
+
+Creates account and logs in
+
+Connects channels (Airbnb, Booking.com, Expedia, TripAdvisor)
+
+Imports listings and maps them
+
+Views dashboard with check-ins, check-outs, alerts
+
+Manages calendar and guest messages
+
+Outcome:
+Host has a single place to manage all bookings and communication.
+
+UC-02: Receive and approve a new reservation
+
+Actor: Unit Owner
+Description:
+A new reservation arrives and requires manual approval.
+
+Flow:
+
+Reservation arrives with status PENDING
+
+“New Reservation” card appears on Home screen
+
+Host taps Accept or Reject
+
+Host can open guest profile before deciding
+
+Reservation status updates accordingly
+
+Outcome:
+Host controls reservations and avoids unwanted bookings.
+
+UC-03: Automated check-in messaging (3-step flow)
+
+Actor: System (on behalf of Unit Owner)
+Description:
+System automatically sends scheduled messages around check-in.
+
+Flow:
+
+10 minutes after booking → Welcome message sent (optional PDF brochure attached)
+
+30 minutes before check-in → Access message sent (door code + Wi-Fi)
+
+1 hour after check-in → Follow-up message sent
+
+Rules:
+
+Each message is sent once per reservation
+
+Automation pauses if required data is missing
+
+All actions are logged
+
+Outcome:
+Guests receive timely information without manual effort from the host.
+
+UC-04: Automation pause and alert
+
+Actor: System
+Description:
+Automation pauses safely if conditions are not met.
+
+Flow:
+
+System detects missing door code / check-in time / messaging permission
+
+Automation is paused for that step
+
+Host receives in-app alert
+
+Action appears in Automation Log with reason
+
+Outcome:
+No broken or risky messages are sent.
+
+UC-05: Unit Owner requests a service (cleaning/maintenance)
+
+Actor: Unit Owner
+Description:
+Host requests cleaning or maintenance service for a unit.
+
+Flow:
+
+Host opens Services screen
+
+Selects a Service Provider
+
+Chooses service type (Cleaning or Maintenance)
+
+Selects listing and date/time
+
+Sends service request
+
+Outcome:
+Service request is created and sent to provider.
+
+UC-06: Service Provider accepts and completes a job
+
+Actor: Service Provider
+Description:
+A provider receives, accepts, and completes a service request.
+
+Flow:
+
+Provider logs in (web dashboard)
+
+Sees new job request
+
+Accepts or declines request
+
+Marks job as In Progress
+
+Uploads photos and completes checklist
+
+Marks job as Completed
+
+Outcome:
+Job is completed with proof and visible to host and admin.
+
+UC-07: Automatic service request on checkout
+
+Actor: System
+Description:
+System automatically creates a service request when a guest checks out.
+
+Flow:
+
+Host enables “Auto-request service on checkout”
+
+Guest checks out
+
+System creates a service request using preferred provider
+
+Provider receives job request
+
+Outcome:
+Host does not need to manually schedule cleaning.
+
+UC-08: Provider manages profile and availability
+
+Actor: Service Provider
+Description:
+Provider manages services, pricing, and availability.
+
+Flow:
+
+Provider edits services offered
+
+Updates service areas
+
+Adjusts pricing
+
+Sets working days and hours
+
+Outcome:
+Providers receive relevant and accurate job requests.
+
+UC-09: Admin monitors platform activity
+
+Actor: Admin
+Description:
+Admin monitors users, jobs, automations, and integrations.
+
+Flow:
+
+Admin logs into admin panel
+
+Views hosts, providers, and listings
+
+Reviews service requests and automation logs
+
+Suspends users or providers if needed
+
+Outcome:
+Platform remains healthy, compliant, and trustworthy.
+
+UC-10: Data deletion and compliance
+
+Actor: Unit Owner
+Description:
+Host disconnects a channel and deletes related data.
+
+Flow:
+
+Host opens Settings
+
+Disconnects a channel
+
+Confirms “Delete channel data”
+
+System deletes reservations, messages, mappings
+
+Host receives confirmation notification
+
+Outcome:
+User data is handled safely and compliantly.
+
+UC-11: Role-based access and dashboards
+
+Actor: System
+Description:
+Users see only interfaces relevant to their role.
+
+Flow:
+
+User logs in
+
+System checks role
+
+Redirects to:
+
+Host app (/)
+
+Provider dashboard (/provider)
+
+Admin panel (/admin)
+
+Outcome:
+Clean separation of responsibilities and UX.

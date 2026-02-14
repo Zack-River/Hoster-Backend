@@ -1,0 +1,231 @@
+
+GOAL
+Add simple B2C automations (toggles + templates + logs) for:
+- Check-in automation
+- Check-out automation
+- Message automation (light)
+Plus safety rules:
+- Channel-aware pausing (disconnected, missing scopes, unmapped listing)
+- Recent automation actions log for trust
+
+-----------------------------------------
+1) UI REQUIREMENTS (Settings → Automation)
+-----------------------------------------
+Add a new Settings item: “Automation”
+When opened, show ONE screen (or one subpage under Settings) with these sections:
+
+A) CHECK-IN AUTOMATION
+- Toggle: “Auto check-in message” (on/off)
+- Send timing selector:
+  - “24 hours before check-in” (default)
+  - “Morning of check-in”
+- Button: “Edit message” (opens template editor sheet)
+- Show message preview under the toggle
+
+B) CHECK-OUT AUTOMATION
+- Toggle: “Auto thank-you message after check-out” (on/off)
+  - Note: “Sent the morning after check-out”
+  - Button: “Edit message”
+- Toggle: “Cleaning reminder” (on/off)
+  - Note: “Notifies you on check-out day”
+
+C) MESSAGE AUTOMATION
+- Toggle: “Auto-reply to first guest message” (on/off) (default OFF)
+  - Note: “Sends a short acknowledgment message”
+  - Button: “Edit message” (optional; can reuse template editor)
+- Toggle: “Quiet hours” (on/off)
+  - Time range inputs: start/end (e.g., 23:00–08:00)
+  - Note: “No auto messages are sent during quiet hours”
+
+D) AUTOMATION SAFETY & VISIBILITY
+- “Recent automated actions” list (read-only)
+  - Show: type, guest name, listing name, channel, timestamp, status (success/failed/paused)
+- Channel-awareness banner when relevant:
+  - Example: “Paused for Booking.com (messaging not supported)” or “Paused: Listing unmapped”
+
+IMPORTANT UX RULES
+- Keep it simple: no rule builders, no conditions UI.
+- All controls are toggles + timing + time range.
+- Reuse existing UI components (Card, Toggle, Badge, BottomSheet/Modal, Toast).
+
+-----------------------------------------
+2) DATA MODEL (Prisma) — ADD/UPDATE MODELS
+-----------------------------------------
+Implement or extend these models (adapt names to your existing schema if needed):
+
+A) ReminderSetting (or AutomationSetting)
+- userId (unique)
+- autoCheckinEnabled boolean DEFAULT true
+- autoCheckinTiming enum: CHECKIN_MINUS_24H | CHECKIN_MORNING DEFAULT CHECKIN_MINUS_24H
+- autoCheckoutThanksEnabled boolean DEFAULT true
+- cleaningReminderEnabled boolean DEFAULT false
+- autoFirstReplyEnabled boolean DEFAULT false
+- quietHoursEnabled boolean DEFAULT false
+- quietHoursStart string "HH:MM" DEFAULT "23:00"
+- quietHoursEnd string "HH:MM" DEFAULT "08:00"
+- updatedAt
+
+B) AutomationTemplate
+(If you already have Template table, add a “key” field; otherwise create this)
+- id
+- userId index
+- key enum:
+  - CHECKIN_MESSAGE
+  - CHECKOUT_THANKYOU
+  - FIRST_REPLY_ACK
+- name
+- body text
+- updatedAt
+
+Seed defaults for each user:
+- CHECKIN_MESSAGE: short check-in instructions placeholder with variables
+- CHECKOUT_THANKYOU: thank you + review nudge
+- FIRST_REPLY_ACK: “Thanks for your message! I’ll get back to you shortly.”
+
+C) AutomationActionLog
+- id
+- userId index
+- listingId nullable
+- reservationId nullable
+- channelId nullable
+- actionType enum:
+  - SEND_CHECKIN_MESSAGE
+  - SEND_CHECKOUT_THANKYOU
+  - SEND_FIRST_REPLY_ACK
+  - CLEANING_REMINDER
+- status enum: SUCCESS | FAILED | PAUSED
+- messageId nullable (if a message was created)
+- reason nullable (why paused/failed)
+- createdAt
+
+D) Channel Pausing Requirements (use existing models)
+You already have:
+- ChannelConnection status (CONNECTED/DISCONNECTED/ERROR)
+- ExternalListingMap mappingStatus (MAPPED/UNMAPPED)
+- grantedScopes for messaging/calendar
+
+We must enforce:
+- If channel disconnected OR missing MESSAGES_WRITE OR listing unmapped => automation is PAUSED for that channel/listing/reservation.
+- Toggle remains ON, but show “Paused” banner in UI.
+
+-----------------------------------------
+3) SERVER LOGIC (SERVICES)
+-----------------------------------------
+Implement an “automation service” with pure functions and tests where possible:
+
+A) canSendAutomatedMessage(userId, listingId, channelId) -> {ok, reason}
+Checks:
+- ChannelConnection is CONNECTED
+- grantedScopes includes MESSAGES_WRITE
+- ExternalListingMap for (listingId, channelId) exists and is MAPPED
+If not, return ok=false with reason used in UI/log.
+
+B) quietHoursCheck(now, quietHoursStart, quietHoursEnd) -> boolean
+If quietHoursEnabled and current time is within quiet hours:
+- do NOT send automated messages
+- log PAUSED with reason “QUIET_HOURS”
+
+C) templateRender(body, variables)
+Support minimal variables:
+- {{GuestName}}
+- {{ListingName}}
+- {{CheckInDate}}
+- {{CheckOutDate}}
+(You can add more if you already have them.)
+
+-----------------------------------------
+4) AUTOMATION TRIGGERS (MVP)
+-----------------------------------------
+Implement these triggers with a cron endpoint (server-side). No external queue.
+
+A) Daily cron endpoint
+POST /api/cron/daily (protected by CRON_SECRET)
+Runs for all users:
+1) CHECK-IN message
+- If autoCheckinEnabled:
+  - Find CONFIRMED reservations where:
+    - if timing = CHECKIN_MINUS_24H: checkIn is tomorrow
+    - if timing = CHECKIN_MORNING: checkIn is today AND current time is morning (choose 08:00 local)
+  - For each reservation:
+    - apply quiet hours rule
+    - apply canSendAutomatedMessage
+    - If ok, create OUTBOUND message (or send via provider adapter if exists)
+    - Log action (SUCCESS/FAILED/PAUSED)
+
+2) CHECK-OUT thank-you
+- If autoCheckoutThanksEnabled:
+  - Find reservations with checkOut = yesterday (send morning after)
+  - Apply quiet hours + canSend
+  - Send message + log
+
+3) CLEANING reminder
+- If cleaningReminderEnabled:
+  - For reservations with checkOut = today:
+    - create in-app Notification
+    - log CLEANING_REMINDER SUCCESS
+
+B) “Auto-reply to first message”
+Trigger when an INBOUND message arrives:
+- If autoFirstReplyEnabled:
+  - If this is the first inbound message in that conversation AND host hasn’t replied yet:
+    - Apply quiet hours
+    - Apply canSend
+    - Send FIRST_REPLY_ACK message
+    - Log action
+IMPORTANT: Avoid loops. Only trigger once per reservation/conversation.
+
+-----------------------------------------
+5) API ROUTES (FOR UI)
+-----------------------------------------
+Add these endpoints (or server actions):
+
+- GET /api/automation/settings -> returns settings + templates
+- PUT /api/automation/settings -> update toggles/timing/quiet hours
+- PUT /api/automation/templates/:key -> update template body
+- GET /api/automation/logs?limit=20 -> recent logs for UI
+
+All endpoints must be authenticated and scoped to current user.
+
+-----------------------------------------
+6) UI IMPLEMENTATION DETAILS
+-----------------------------------------
+- Add “Automation” entry in Settings list
+- Create /settings/automation page (or nested route) with the sections described
+- Reuse UI components:
+  - Toggle switch
+  - Select (timing)
+  - Time inputs
+  - Card layout
+  - Sheet/modal for editing templates
+  - Toast on save
+- Show banners when automation is paused due to:
+  - channel disconnected
+  - missing messaging scope
+  - unmapped listing
+- Recent automated actions list should show last 20 logs
+
+-----------------------------------------
+7) DEFINITIONS OF DONE
+-----------------------------------------
+- Automation section appears in Settings and works end-to-end
+- Settings persist in DB
+- Template editing works and is used by cron/auto-reply
+- Cron daily endpoint triggers messages/notifications and writes logs
+- Auto-reply triggers on first inbound message and logs action
+- Pause logic works and is visible (banners + logs)
+- No new main screens/tabs added; only Settings → Automation added
+- Code is type-safe, validated (zod), and includes basic error handling
+
+-----------------------------------------
+8) ENV VARS
+-----------------------------------------
+- DATABASE_URL
+- NEXTAUTH_SECRET
+- CRON_SECRET
+
+Proceed step-by-step:
+1) Prisma migrations + seed templates for existing users
+2) API routes and services (pause logic, quiet hours, renderer)
+3) Settings → Automation UI
+4) Cron daily + auto-reply trigger wiring
+5) Logs UI + polish

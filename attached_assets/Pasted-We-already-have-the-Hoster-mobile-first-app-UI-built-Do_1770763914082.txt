@@ -1,0 +1,95 @@
+We already have the Hoster mobile-first app UI built. Do NOT rebuild the app.
+Only update the Home screen UI + add minimal supporting logic.
+
+GOAL
+1) Make the “Next Check-in” card smaller (compact).
+2) Add a new “New Reservation” card ABOVE “Next Check-in” when a new reservation arrives.
+3) The “New Reservation” card must include Accept/Reject actions and allow opening a guest profile sheet.
+
+----------------------------------------
+A) HOME UI CHANGES
+----------------------------------------
+1) NEXT CHECK-IN card (compact)
+- Reduce height and padding.
+- Show only:
+  - Guest name
+  - Check-in date
+  - Listing/property name (small)
+  - Optional small channel badge icon
+- Keep styling consistent with existing cards.
+
+2) NEW RESERVATION card (only when pending)
+- If there is a reservation with status = PENDING (or REQUESTED/NEEDS_APPROVAL),
+  show a card above Next Check-in.
+- Card UI:
+  - Header: "New Reservation"
+  - Guest name + dates + property
+  - Channel badge icon
+  - Two buttons aligned horizontally:
+    - Accept (primary)
+    - Reject (secondary/destructive)
+  - Guest name/photo is tappable to open guest profile sheet.
+
+3) If multiple pending reservations exist:
+- Show the newest one in the card
+- Add small text/button: “View all (N)” that navigates to a filtered list (can be Inbox or Reservations list if exists).
+If no list exists, keep MVP: show only newest.
+
+----------------------------------------
+B) GUEST PROFILE SHEET (MODAL/BOTTOM SHEET)
+----------------------------------------
+When tapping guest name/photo in the New Reservation card:
+- Open a bottom sheet/modal showing:
+  - Guest avatar (placeholder if none)
+  - Guest name
+  - Reservation dates
+  - Property name
+  - Channel badge
+  - Optional contact fields if available
+- Include Accept/Reject buttons inside the sheet too
+- Close action
+
+----------------------------------------
+C) DATA / LOGIC
+----------------------------------------
+Assume reservations have statuses.
+Add/confirm these statuses exist:
+- PENDING (new reservation that needs action)
+- CONFIRMED
+- REJECTED (or CANCELED)
+
+Logic:
+- “New Reservation” card should show ONLY if there is at least 1 PENDING reservation.
+- Accept action:
+  - update reservation status to CONFIRMED
+  - remove it from “New Reservation” card
+  - show toast “Reservation accepted”
+- Reject action:
+  - update reservation status to REJECTED
+  - remove card
+  - show toast “Reservation rejected”
+
+If the backend API exists:
+- Create endpoints:
+  - POST /api/reservations/:id/accept
+  - POST /api/reservations/:id/reject
+Or use server actions if that’s how the app is structured.
+
+If using mock providers:
+- Ensure mock can generate PENDING reservations sometimes.
+- Ensure UI updates immediately (optimistic UI) then confirms.
+
+----------------------------------------
+D) DESIGN REQUIREMENTS
+----------------------------------------
+- Mobile-first only.
+- No new main screens/tabs.
+- Reuse existing typography, cards, spacing.
+- Keep it calm and simple.
+- Buttons must be large tap targets.
+
+DELIVERABLE
+- Updated Home UI with compact Next Check-in card
+- New Reservation card above it with Accept/Reject
+- Guest profile bottom sheet + Accept/Reject inside it
+- Working state updates + toasts
